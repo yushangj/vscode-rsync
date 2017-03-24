@@ -5,6 +5,8 @@ import * as vscode from 'vscode';
 
 import * as rsync from 'rsync';
 
+import * as fs from 'fs';
+
 let out = vscode.window.createOutputChannel("Sync- Rsync");
 
 // this method is called when your extension is activated
@@ -15,18 +17,43 @@ export function activate(context: vscode.ExtensionContext) {
     let runSync = function (r: any) {
 
         let config: vscode.WorkspaceConfiguration = vscode.workspace.getConfiguration('sync-rsync')
-        
-        r = r
-            .flags(config.get('flags','rlptzv'))
-            .exclude(config.get('exclude',[".git",".vscode"]))
-            .progress();
-
-        let shell = config.get('shell',undefined);
-        if(shell !== undefined) {
-            r = r.shell(shell);
+        let wcfg: JSON = JSON.parse(fs.readFileSync(vscode.workspace.rootPath+'/.rsync').toString());
+        let cfg_exclude: string[] = wcfg['exclude'];
+        let cfg_flags: string = wcfg['flags'];
+        let cfg_shell: string = wcfg['shell'];
+        let cfg_delete: boolean = wcfg['delete'];
+        let cfg_autoHide: boolean = wcfg['autoHideOutput'];
+        if(cfg_exclude == undefined){
+            cfg_exclude = config.get('exclude',[".git",".vscode"]);
+        }
+        if(cfg_flags == undefined){
+            cfg_flags = config.get('flags','rlptzv');
+        }
+        if(cfg_shell == undefined){
+            cfg_shell = config.get('shell',undefined);
+        }
+        if(cfg_delete = undefined){
+            cfg_delete = config.get('delete',false);
+        }
+        if(cfg_autoHide = undefined){
+            cfg_autoHide = config.get('autoHideOutput',true);
         }
 
-        if(config.get('delete',false)) {
+        //console.log('exclude:'+cfg_exclude);
+        //console.log('flags:'+cfg_flags);
+        //console.log('delete:'+cfg_delete);
+        //console.log('shell:'+cfg_shell);
+        //console.log('autoHideOutput:'+cfg_autoHide);
+        r = r
+            .flags(cfg_flags)
+            .exclude(cfg_exclude)
+            .progress();
+
+        if(cfg_shell !== undefined) {
+            r = r.shell(cfg_shell);
+        }
+
+        if(cfg_delete) {
             r = r.delete()
         }
 
@@ -36,7 +63,7 @@ export function activate(context: vscode.ExtensionContext) {
                 if(error) {
                     vscode.window.showErrorMessage(error.message);
                 } else {
-                    if(config.get('autoHideOutput',true)) {
+                    if(cfg_autoHide) {
                         out.hide();
                     }
                 }
@@ -60,15 +87,20 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         local = local + '/';
-
-        let config: vscode.WorkspaceConfiguration = vscode.workspace.getConfiguration('sync-rsync')
-        let remote: string = config.get('remote',null);
-
-        if(remote === null) {
-            vscode.window.showErrorMessage('Sync - Rsync is not configured');    
+        
+        // add workspace level config support
+        let wcfg: JSON = JSON.parse(fs.readFileSync(local+'.rsync').toString());
+        if(wcfg == null){
+            vscode.window.showErrorMessage('Sync - Workspace Rsync is not configured');
+            // create a new .rsync file and display it 
             return;
         }
-
+        let remote: string = wcfg["remote"];
+        if(remote == undefined ||
+            remote.length == 0) {
+            vscode.window.showErrorMessage('Sync - Workspace Rsync remote is not configured');    
+            return;
+        }
         remote = remote + '/';
         
         let r = new rsync();
@@ -98,8 +130,13 @@ export function activate(context: vscode.ExtensionContext) {
     // On Save
     vscode.workspace.onDidSaveTextDocument((e: vscode.TextDocument) => {
         let config: vscode.WorkspaceConfiguration = vscode.workspace.getConfiguration('sync-rsync')
-        let onSave: boolean = config.get('onSave',false);
-
+        let wcfg: JSON = JSON.parse(fs.readFileSync(vscode.workspace.rootPath+'/.rsync').toString());
+        let onSave: boolean = wcfg['onSave'];
+        if(onSave == undefined){
+            onSave = config.get('onSave',false);
+        }
+        //console.log('onSave:'+onSave);
+        
         if(onSave) {
             sync(false);
         }

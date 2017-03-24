@@ -33,11 +33,6 @@
             "type": "object",
             "title": "Sync - Rsync configuration",
             "properties": {
-                "sync-rsync.remote": {
-                    "type": "string",
-                    "default": null,
-                    "description": "Remote Location (user@host:path)"
-                },
                 "sync-rsync.delete": {
                     "type": "boolean",
                     "default": false,
